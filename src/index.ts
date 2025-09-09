@@ -1,55 +1,123 @@
 import { McpAgent } from "agents/mcp";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { z } from "zod";
+import { SimpleStorage } from "./storage";
+import { UploadSchema, SearchSchema, type UploadInput, type SearchInput } from "./types";
 
-// Define our MCP agent with tools
-export class MyMCP extends McpAgent {
+/**
+ * Simple Agent Stack Overflow MCP Server
+ */
+export class AgentStackOverflowMCP extends McpAgent {
 	server = new McpServer({
-		name: "Authless Calculator",
+		name: "Agent Stack Overflow",
 		version: "1.0.0",
+		capabilities: {
+			tools: {},
+		},
 	});
 
-	async init() {
-		// Simple addition tool
-		this.server.tool("add", { a: z.number(), b: z.number() }, async ({ a, b }) => ({
-			content: [{ type: "text", text: String(a + b) }],
-		}));
+	private storage: SimpleStorage;
 
-		// Calculator tool with multiple operations
+	constructor(state: DurableObjectState, env: Env) {
+		super(state, env);
+		this.storage = new SimpleStorage(state.storage);
+	}
+
+	async init() {
+		// Upload tool - store code solutions
 		this.server.tool(
-			"calculate",
+			"upload",
+			"Upload a code solution",
 			{
-				operation: z.enum(["add", "subtract", "multiply", "divide"]),
-				a: z.number(),
-				b: z.number(),
+				title: UploadSchema.shape.title,
+				description: UploadSchema.shape.description,
+				code: UploadSchema.shape.code,
+				tags: UploadSchema.shape.tags,
 			},
-			async ({ operation, a, b }) => {
-				let result: number;
-				switch (operation) {
-					case "add":
-						result = a + b;
-						break;
-					case "subtract":
-						result = a - b;
-						break;
-					case "multiply":
-						result = a * b;
-						break;
-					case "divide":
-						if (b === 0)
-							return {
-								content: [
-									{
-										type: "text",
-										text: "Error: Cannot divide by zero",
-									},
-								],
-							};
-						result = a / b;
-						break;
+			async (input: any) => {
+				try {
+					// Basic validation
+					const validated = UploadSchema.parse(input) as UploadInput;
+					
+					// Store the entry
+					const entry = await this.storage.store(validated);
+					
+					return {
+						content: [
+							{
+								type: "text",
+								text: JSON.stringify({
+									success: true,
+									message: "Code solution uploaded successfully!",
+									id: entry.id,
+									title: entry.title,
+								}, null, 2),
+							},
+						],
+					};
+				} catch (error) {
+					return {
+						content: [
+							{
+								type: "text",
+								text: JSON.stringify({
+									success: false,
+									error: error instanceof Error ? error.message : "Upload failed",
+								}, null, 2),
+							},
+						],
+					};
 				}
-				return { content: [{ type: "text", text: String(result) }] };
+			}
+		);
+
+		// Search tool - find code solutions
+		this.server.tool(
+			"search",
+			"Search for code solutions",
+			{
+				query: SearchSchema.shape.query,
 			},
+			async (input: any) => {
+				try {
+					// Basic validation
+					const validated = SearchSchema.parse(input) as SearchInput;
+					
+					// Search entries
+					const results = await this.storage.search(validated.query);
+					
+					return {
+						content: [
+							{
+								type: "text",
+								text: JSON.stringify({
+									success: true,
+									message: `Found ${results.length} solution(s) for "${validated.query}"`,
+									results: results.map(r => ({
+										id: r.id,
+										title: r.title,
+										description: r.description,
+										code: r.code,
+										tags: r.tags,
+										createdAt: r.createdAt,
+									})),
+								}, null, 2),
+							},
+						],
+					};
+				} catch (error) {
+					return {
+						content: [
+							{
+								type: "text",
+								text: JSON.stringify({
+									success: false,
+									error: error instanceof Error ? error.message : "Search failed",
+								}, null, 2),
+							},
+						],
+					};
+				}
+			}
 		);
 	}
 }
@@ -59,11 +127,11 @@ export default {
 		const url = new URL(request.url);
 
 		if (url.pathname === "/sse" || url.pathname === "/sse/message") {
-			return MyMCP.serveSSE("/sse").fetch(request, env, ctx);
+			return AgentStackOverflowMCP.serveSSE("/sse").fetch(request, env, ctx);
 		}
 
 		if (url.pathname === "/mcp") {
-			return MyMCP.serve("/mcp").fetch(request, env, ctx);
+			return AgentStackOverflowMCP.serve("/mcp").fetch(request, env, ctx);
 		}
 
 		return new Response("Not found", { status: 404 });
