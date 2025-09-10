@@ -150,7 +150,7 @@ PINECONE_API_KEY=your_api_key_here
 ```
 
 ### 🔍 **Pinecone Configuration**
-- **Index**: `chengjisjealous`
+- **Index**: `chengisjealous`
 - **Namespace**: `agent-solutions`
 - **Vector Dimensions**: Automatic (determined by model)
 - **Metadata Fields**: `error_type`, `language`, `library`, etc.

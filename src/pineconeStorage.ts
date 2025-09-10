@@ -10,7 +10,7 @@ import { embedSingle } from './embeddings';
 export class PineconeStorage {
 	private namespace: any;
 	private openaiApiKey: string;
-	private indexName = 'chengjisjealous';
+	private indexName = 'chengisjealous';
 	private namespaceName = 'agent-solutions';
 
 	constructor(openaiApiKey: string, pineconeApiKey: string) {
@@ -29,12 +29,16 @@ export class PineconeStorage {
 		try {
 			// Generate unique ID
 			const bugId = uuidv4();
+			console.log(`Starting solution storage for ID: ${bugId}`);
 
 			// Prepare text for embedding - this is key for semantic search
 			const embeddingText = `${input.problem.error_type} ${input.problem.error_message} ${input.problem.agent_summary} ${input.solution.agent_explanation}`;
+			console.log(`Embedding text length: ${embeddingText.length} characters`);
 
 			// Generate embedding using OpenAI
+			console.log('Generating embedding with OpenAI...');
 			const embedding = await embedSingle(embeddingText, this.openaiApiKey);
+			console.log(`Generated embedding with ${embedding.length} dimensions`);
 
 			// Structure data for Pinecone with manual embedding
 			const vectorToUpsert = {
@@ -54,7 +58,9 @@ export class PineconeStorage {
 			};
 
 			// Upsert to Pinecone using standard format
-			await this.namespace.upsert([vectorToUpsert]);
+			console.log(`Upserting vector to Pinecone index: ${this.indexName}, namespace: ${this.namespaceName}`);
+			const upsertResponse = await this.namespace.upsert([vectorToUpsert]);
+			console.log('Pinecone upsert response:', JSON.stringify(upsertResponse, null, 2));
 
 			console.log(`Successfully stored solution with ID: ${bugId}`);
 			return bugId;
@@ -72,23 +78,21 @@ export class PineconeStorage {
 		try {
 			// Prepare search text for embedding
 			const searchText = `${input.problem.error_message} ${input.problem.agent_summary}`;
+			console.log(`Searching with query: "${searchText}"`);
 
 			// Generate embedding for search query using OpenAI
+			console.log('Generating query embedding...');
 			const queryEmbedding = await embedSingle(searchText, this.openaiApiKey);
-
-			// Build metadata filter based on environment
-			const filter: Record<string, any> = {
-				language: { '$eq': input.environment.language.toLowerCase() },
-				library: { '$eq': input.environment.primary_library.toLowerCase() },
-			};
+			console.log(`Query embedding has ${queryEmbedding.length} dimensions`);
 
 			// Perform vector search with manual embedding
+			console.log('Performing Pinecone vector search (no filters)');
 			const searchResult = await this.namespace.query({
 				vector: queryEmbedding,
 				topK: 5, // Return top 5 most relevant results
 				includeMetadata: true,
-				filter: filter,
 			});
+			console.log('Pinecone search response:', JSON.stringify(searchResult, null, 2));
 
 			// Format results
 			const formattedResults: SearchResult[] = searchResult.matches?.map((match: any) => ({

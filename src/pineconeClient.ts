@@ -17,7 +17,7 @@ const pc = new Pinecone({
 });
 
 // Connect to the existing index
-const INDEX_NAME = 'chengjisjealous';
+const INDEX_NAME = 'chengisjealous';
 const NAMESPACE = 'agent-solutions';
 
 export const pineconeIndex = pc.index(INDEX_NAME);
