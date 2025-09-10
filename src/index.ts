@@ -1,45 +1,49 @@
 import { McpAgent } from "agents/mcp";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { SimpleStorage } from "./storage";
-import { UploadSchema, SearchSchema, type UploadInput, type SearchInput } from "./types";
+import { PineconeStorage } from "./pineconeStorage";
+import { 
+	UploadPayloadSchema, 
+	SearchPayloadSchema,
+	type UploadPayload,
+	type SearchPayload
+} from "./types";
 
 /**
- * Simple Agent Stack Overflow MCP Server
+ * Agent Stack Overflow MCP Server with Pinecone Vector Search
  */
 export class AgentStackOverflowMCP extends McpAgent {
 	server = new McpServer({
 		name: "Agent Stack Overflow",
-		version: "1.0.0",
+		version: "2.0.0",
 		capabilities: {
 			tools: {},
 		},
 	});
 
-	private storage: SimpleStorage;
+	private pineconeStorage: PineconeStorage;
 
 	constructor(state: DurableObjectState, env: Env) {
 		super(state, env);
-		this.storage = new SimpleStorage(state.storage);
+		this.pineconeStorage = new PineconeStorage(env.OPENAI_API_KEY, env.PINECONE_API_KEY);
 	}
 
 	async init() {
-		// Upload tool - store code solutions
+		// Upload solution tool
 		this.server.tool(
 			"upload",
-			"Upload a code solution",
+			"Upload a bug fix solution",
 			{
-				title: UploadSchema.shape.title,
-				description: UploadSchema.shape.description,
-				code: UploadSchema.shape.code,
-				tags: UploadSchema.shape.tags,
+				problem: UploadPayloadSchema.shape.problem,
+				environment: UploadPayloadSchema.shape.environment,
+				solution: UploadPayloadSchema.shape.solution,
 			},
 			async (input: any) => {
 				try {
-					// Basic validation
-					const validated = UploadSchema.parse(input) as UploadInput;
+					// Validate input
+					const validated = UploadPayloadSchema.parse(input) as UploadPayload;
 					
-					// Store the entry
-					const entry = await this.storage.store(validated);
+					// Store in Pinecone with vector embedding
+					const bugId = await this.pineconeStorage.storeSolution(validated);
 					
 					return {
 						content: [
@@ -47,9 +51,13 @@ export class AgentStackOverflowMCP extends McpAgent {
 								type: "text",
 								text: JSON.stringify({
 									success: true,
-									message: "Code solution uploaded successfully!",
-									id: entry.id,
-									title: entry.title,
+									message: "Solution uploaded successfully with vector embedding!",
+									bugId: bugId,
+									problem: {
+										error_type: validated.problem.error_type,
+										agent_summary: validated.problem.agent_summary,
+									},
+									environment: validated.environment,
 								}, null, 2),
 							},
 						],
@@ -70,20 +78,21 @@ export class AgentStackOverflowMCP extends McpAgent {
 			}
 		);
 
-		// Search tool - find code solutions
+		// Search solutions tool
 		this.server.tool(
 			"search",
-			"Search for code solutions",
+			"Search for solutions using vector similarity",
 			{
-				query: SearchSchema.shape.query,
+				problem: SearchPayloadSchema.shape.problem,
+				environment: SearchPayloadSchema.shape.environment,
 			},
 			async (input: any) => {
 				try {
-					// Basic validation
-					const validated = SearchSchema.parse(input) as SearchInput;
+					// Validate input
+					const validated = SearchPayloadSchema.parse(input) as SearchPayload;
 					
-					// Search entries
-					const results = await this.storage.search(validated.query);
+					// Search using vector similarity
+					const results = await this.pineconeStorage.searchSolutions(validated);
 					
 					return {
 						content: [
@@ -91,15 +100,13 @@ export class AgentStackOverflowMCP extends McpAgent {
 								type: "text",
 								text: JSON.stringify({
 									success: true,
-									message: `Found ${results.length} solution(s) for "${validated.query}"`,
-									results: results.map(r => ({
-										id: r.id,
-										title: r.title,
-										description: r.description,
-										code: r.code,
-										tags: r.tags,
-										createdAt: r.createdAt,
-									})),
+									message: `Found ${results.length} solution(s) using vector similarity`,
+									query: {
+										error_message: validated.problem.error_message,
+										agent_summary: validated.problem.agent_summary,
+									},
+									environment: validated.environment,
+									results: results,
 								}, null, 2),
 							},
 						],
@@ -112,6 +119,45 @@ export class AgentStackOverflowMCP extends McpAgent {
 								text: JSON.stringify({
 									success: false,
 									error: error instanceof Error ? error.message : "Search failed",
+								}, null, 2),
+							},
+						],
+					};
+				}
+			}
+		);
+
+		// Health check
+		this.server.tool(
+			"health",
+			"Check system health",
+			{},
+			async () => {
+				try {
+					const pineconeHealth = await this.pineconeStorage.healthCheck();
+					
+					return {
+						content: [
+							{
+								type: "text",
+								text: JSON.stringify({
+									status: "healthy",
+									timestamp: new Date().toISOString(),
+									version: "2.0.0",
+									pinecone: pineconeHealth,
+								}, null, 2),
+							},
+						],
+					};
+				} catch (error) {
+					return {
+						content: [
+							{
+								type: "text",
+								text: JSON.stringify({
+									status: "unhealthy",
+									error: error instanceof Error ? error.message : "Unknown error",
+									timestamp: new Date().toISOString(),
 								}, null, 2),
 							},
 						],

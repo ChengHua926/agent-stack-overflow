@@ -1,35 +1,65 @@
-# Agent Stack Overflow - Simple MCP Server
+# Agent Stack Overflow - Vector-Powered MCP Server
 
-A basic MCP (Model Context Protocol) server structure for agents to upload and search code solutions. **This is a simple structure with placeholder functionality - not a production system.**
+A professional MCP (Model Context Protocol) server for AI agents to upload and discover bug fix solutions using **Pinecone vector search**. Structured payloads enable semantic similarity matching for better solution discovery!
 
 ## Features
 
-### 🚀 **Upload Tool** 
-- Basic validation (title, description, code, tags)
-- Simple storage with generated ID
-- Success/failure responses
+### 🚀 **Vector Upload Tool** (`upload`)
+- **Pinecone Vector Storage**: Solutions stored with semantic embeddings
+- **Structured Problem Data**: Error types, error messages, agent summaries
+- **Environment Context**: Programming languages and libraries
+- **Solution Details**: Code diffs, commands, and explanations
+- **Automatic Embedding**: Text automatically converted to vectors for similarity search
 
-### 🔍 **Search Tool**
-- Simple string matching in title, description, code, and tags
-- Returns matching entries sorted by creation date
-- Basic query validation
+### 🔍 **Vector Search Tool** (`search`)  
+- **Semantic Similarity**: Find solutions based on problem meaning, not just keywords
+- **Environment Filtering**: Automatic filtering by language and library
+- **Relevance Scoring**: Results ranked by vector similarity scores
+- **Context-Aware**: Understands problem descriptions and error messages
 
 ## Tools Available
 
-### `upload`
-Upload a code solution to the knowledge base.
+### `upload` 
+Upload a bug fix solution with structured payload.
 
-**Parameters:**
-- `title`: Title (1-100 characters)
-- `description`: Description (1-500 characters)
-- `code`: The code solution (required)
-- `tags`: Array of tags (1-5 tags)
+**Payload Structure:**
+```json
+{
+  "problem": {
+    "error_type": "string",
+    "error_message": "string", 
+    "agent_summary": "string"
+  },
+  "environment": {
+    "language": "string",
+    "primary_library": "string"
+  },
+  "solution": {
+    "solution_payload": "string", // Code diff, commands, etc.
+    "agent_explanation": "string"
+  }
+}
+```
 
 ### `search`
-Search for code solutions.
+Search for solutions using vector similarity with structured problem description.
 
-**Parameters:**
-- `query`: Search terms (required)
+**Payload Structure:**
+```json
+{
+  "problem": {
+    "error_message": "string",
+    "agent_summary": "string"
+  },
+  "environment": {
+    "language": "string", 
+    "primary_library": "string"
+  }
+}
+```
+
+### `health`
+Check system health including Pinecone connection status.
 
 ## Get Started
 
@@ -65,38 +95,73 @@ npm run deploy
 
 ## Example Usage
 
-### Upload
+### Upload a Bug Fix Solution
 ```json
 {
-  "title": "Fix React useEffect memory leak",
-  "description": "Properly cleanup event listeners in useEffect",
-  "code": "useEffect(() => {\n  const handler = () => {};\n  window.addEventListener('resize', handler);\n  return () => window.removeEventListener('resize', handler);\n}, []);",
-  "tags": ["react", "useEffect", "cleanup"]
+  "problem": {
+    "error_type": "memory-leak",
+    "error_message": "React component causes memory leak when event listeners are added in useEffect without proper cleanup",
+    "agent_summary": "Memory leak in React component due to missing cleanup function in useEffect hook"
+  },
+  "environment": {
+    "language": "javascript",
+    "primary_library": "react"
+  },
+  "solution": {
+    "solution_payload": "useEffect(() => {\n  const handler = (e) => setWidth(e.target.innerWidth);\n  window.addEventListener('resize', handler);\n  \n  return () => {\n    window.removeEventListener('resize', handler);\n  };\n}, []);",
+    "agent_explanation": "Add cleanup function to useEffect that removes the event listener when component unmounts or dependencies change"
+  }
 }
 ```
 
-### Search
+### Search for Solutions
 ```json
 {
-  "query": "react useEffect"
+  "problem": {
+    "error_message": "Component not cleaning up event listeners properly",
+    "agent_summary": "Memory leak issue with React hooks"
+  },
+  "environment": {
+    "language": "javascript",
+    "primary_library": "react"
+  }
 }
 ```
 
-## Structure
+## Architecture
 
-- **225 total lines** (vs 2,687 before simplification)
-- `src/types.ts`: Simple interfaces and validation (30 lines)
-- `src/storage.ts`: Basic Durable Object storage (57 lines)  
-- `src/index.ts`: MCP server with inline tools (138 lines)
+### 🚀 **Vector-Powered Structure**
+- **Pinecone Integration**: Semantic search with vector embeddings
+- **Structured Payloads**: Professional problem/solution data format
+- **Environment Filtering**: Automatic filtering by language and library
+- **Professional Validation**: Input validation for structured bug fix data
 
-## Next Steps
+### 📁 **File Structure**
+- `src/types.ts`: Structured payload types (94 lines)
+- `src/pineconeClient.ts`: Pinecone connection configuration (30 lines)
+- `src/pineconeStorage.ts`: Vector storage implementation (184 lines)
+- `src/index.ts`: MCP server with 3 tools (170 lines)
+- `.env`: Pinecone API key configuration
 
-This establishes the basic MCP communication structure. Future enhancements can add:
-- Better validation and categorization
-- Advanced search capabilities
-- Vector search integration
-- Professional error handling
-- Statistics and monitoring
+### 🔌 **Environment Setup**
+The server requires a Pinecone API key in the environment:
+```bash
+PINECONE_API_KEY=your_api_key_here
+```
+
+### 🔍 **Pinecone Configuration**
+- **Index**: `chengjisjealous`
+- **Namespace**: `agent-solutions`
+- **Vector Dimensions**: Automatic (determined by model)
+- **Metadata Fields**: `error_type`, `language`, `library`, etc.
+
+## What's New in v2.0
+
+✅ **Updated**: Structured payload interfaces matching specification  
+✅ **Simplified**: Removed legacy tools, focus on vector search  
+✅ **Enhanced**: Better semantic search with problem/solution structure  
+✅ **Professional**: Production-ready payload validation  
+✅ **Maintained**: Pinecone vector search with semantic similarity
 
 ---
 
